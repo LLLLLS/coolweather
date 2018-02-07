@@ -10,14 +10,14 @@ import android.os.SystemClock;
 import android.preference.PreferenceManager;
 
 import com.coolweather.android.gson.Weather;
-import com.coolweather.android.util.HttpUtil;
+import com.coolweather.android.util.Request;
 import com.coolweather.android.util.Utility;
 
-import java.io.IOException;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class AutoUPdateService extends Service {
 
@@ -44,21 +44,20 @@ public class AutoUPdateService extends Service {
      * 更新天气信息
      */
     private void updateWeather() {
+        String key="f224357a3cc943dbabb8eb3f81661518";
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
         if (weatherString != null) {
             Weather weather = Utility.handleWeatherResponse(weatherString);
             String weatherId = weather.basic.weatherId;
-            String weatherUrl = "http://guolin.tech/api/weather?cityid=" + weatherId + "&key=f224357a3cc943dbabb8eb3f81661518";
-            HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
+            Retrofit retrofit=new Retrofit.Builder().baseUrl("http://guolin.tech/api/")
+                    .addConverterFactory(ScalarsConverterFactory.create()).build();
+            Request request=retrofit.create(Request.class);
+            Call<String> call=request.getCall(weatherId,key);
+            call.enqueue(new Callback<String>() {
                 @Override
-                public void onFailure(Call call, IOException e) {
-                    e.printStackTrace();
-                }
-
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    String responseText = response.body().string();
+                public void onResponse(Call<String> call, Response<String> response) {
+                    String responseText = response.body();
                     Weather weather = Utility.handleWeatherResponse(responseText);
                     if (weather != null && "ok".equals(weather.status)) {
                         SharedPreferences.Editor editor = PreferenceManager.
@@ -66,6 +65,11 @@ public class AutoUPdateService extends Service {
                         editor.putString("weather", responseText);
                         editor.apply();
                     }
+                }
+
+                @Override
+                public void onFailure(Call<String> call, Throwable t) {
+                    t.printStackTrace();
                 }
             });
         }
@@ -75,19 +79,22 @@ public class AutoUPdateService extends Service {
      * 更新必应每日一图
      */
     private void updateBingPic() {
-        String requestBingPic = "http://guolin.tech/api/bing_pic";
-        HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
+        Retrofit retrofit=new Retrofit.Builder().baseUrl("http://guolin.tech/api/")
+                .addConverterFactory(ScalarsConverterFactory.create()).build();
+        Request request=retrofit.create(Request.class);
+        Call<String> call=request.getPic();
+        call.enqueue(new Callback<String>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String bingPic = response.body().string();
+            public void onResponse(Call<String> call, Response<String> response) {
+                String bingPic = response.body();
                 SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(AutoUPdateService.this).edit();
                 editor.putString("bing_pic", bingPic);
                 editor.apply();
+            }
+
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+                t.printStackTrace();
             }
         });
     }

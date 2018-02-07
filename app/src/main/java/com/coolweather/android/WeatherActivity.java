@@ -22,18 +22,16 @@ import com.bumptech.glide.Glide;
 import com.coolweather.android.gson.Forecast;
 import com.coolweather.android.gson.Weather;
 import com.coolweather.android.service.AutoUPdateService;
-import com.coolweather.android.util.HttpUtil;
+import com.coolweather.android.util.Request;
 import com.coolweather.android.util.Utility;
 
-import java.io.IOException;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class WeatherActivity extends AppCompatActivity {
-
-    private static final String TAG = "WeatherActivity";
 
     public DrawerLayout drawerLayout;
     public SwipeRefreshLayout swipeRefresh;
@@ -121,27 +119,16 @@ public class WeatherActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * 根据天气id 请求城市天气信息
-     */
-    public void requestWeather(final String weatherId) {
-        String weatherUrl = "http://guolin.tech/api/weather?cityid=" + weatherId + "&key=f224357a3cc943dbabb8eb3f81661518";
-        HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
+    public void requestWeather(final String weatherId){
+        String key="f224357a3cc943dbabb8eb3f81661518";
+        Retrofit retrofit=new Retrofit.Builder().baseUrl("http://guolin.tech/api/")
+                .addConverterFactory(ScalarsConverterFactory.create()).build();
+        Request request=retrofit.create(Request.class);
+        Call<String> call=request.getCall(weatherId,key);
+        call.enqueue(new Callback<String>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
-                        swipeRefresh.setRefreshing(false);
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String responseText = response.body().string();
+            public void onResponse(Call<String> call, Response<String> response) {
+                final String responseText = response.body();
                 final Weather weather = Utility.handleWeatherResponse(responseText);
                 runOnUiThread(new Runnable() {
                     @Override
@@ -160,14 +147,22 @@ public class WeatherActivity extends AppCompatActivity {
                     }
                 });
             }
+
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+                t.printStackTrace();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
+                        swipeRefresh.setRefreshing(false);
+                    }
+                });
+            }
         });
-        loadBingPic();
     }
 
-    /**
-     * 处理并展示Weather实体类中的数据
-     */
-    private void showWeatherInfo(Weather weather) {
+    private void showWeatherInfo(Weather weather){
         String cityName = weather.basic.cityName;
         String updateTime = weather.basic.update.updateTime.split(" ")[1];
         String degree = weather.now.temperature + "℃";
@@ -204,20 +199,15 @@ public class WeatherActivity extends AppCompatActivity {
         startService(intent);
     }
 
-    /**
-     * 加载必应每日一图
-     */
-    private void loadBingPic() {
-        String requestBingPic = "http://guolin.tech/api/bing_pic";
-        HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
+    private void loadBingPic(){
+        Retrofit retrofit=new Retrofit.Builder().baseUrl("http://guolin.tech/api/")
+                .addConverterFactory(ScalarsConverterFactory.create()).build();
+        Request request=retrofit.create(Request.class);
+        Call<String> call=request.getPic();
+        call.enqueue(new Callback<String>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String bingPic = response.body().string();
+            public void onResponse(Call<String> call, Response<String> response) {
+                final String bingPic = response.body();
                 SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
                 editor.putString("bing_pic", bingPic);
                 editor.apply();
@@ -227,6 +217,11 @@ public class WeatherActivity extends AppCompatActivity {
                         Glide.with(WeatherActivity.this).load(bingPic).into(bingPicImg);
                     }
                 });
+            }
+
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+
             }
         });
     }
